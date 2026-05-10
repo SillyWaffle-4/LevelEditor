@@ -1,0 +1,1698 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Level Editor</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050810;
+      --panel: rgba(16, 24, 40, 0.85);
+      --panel-2: rgba(26, 36, 56, 0.9);
+      --ink: #e0faff;
+      --muted: #8096a7;
+      --line: #1e2d4d;
+      --accent: #00f2ff;
+      --blue: #00f2ff;
+      --green: #00ff9d;
+      --red: #ff0055;
+      --violet: #bc13fe;
+      --glow-blue: 0 0 10px rgba(0, 242, 255, 0.5);
+      --glow-green: 0 0 10px rgba(0, 255, 157, 0.5);
+      --tile: min(4.8vw, 42px);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0a1931 0%, var(--bg) 70%);
+      overflow-x: hidden;
+    }
+
+    button, textarea { font: inherit; }
+
+    button {
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--panel-2);
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(4px);
+      text-transform: uppercase;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    button:hover {
+      border-color: var(--blue);
+      box-shadow: var(--glow-blue);
+      transform: translateY(-1px);
+    }
+
+    button.primary {
+      background: rgba(0, 242, 255, 0.15);
+      border-color: var(--blue);
+      color: var(--blue);
+      text-shadow: var(--glow-blue);
+    }
+
+    button.good {
+      background: rgba(0, 255, 157, 0.15);
+      border-color: var(--green);
+      color: var(--green);
+      text-shadow: var(--glow-green);
+    }
+
+    button.danger {
+      background: rgba(255, 0, 85, 0.15);
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    button.active {
+      outline: none;
+      background: var(--blue);
+      color: var(--bg);
+      border-color: var(--blue);
+      box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px clamp(12px, 3vw, 28px);
+      border-bottom: 1px solid var(--line);
+      background: rgba(5, 8, 16, 0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(20px, 3vw, 30px);
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, var(--blue), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 8px rgba(0, 242, 255, 0.3));
+    }
+
+    .hint, .message {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .message {
+      min-height: 20px;
+      color: var(--green);
+      font-weight: 500;
+    }
+
+    .tabs, .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .tabs button { padding: 0 16px; }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(270px, 370px);
+      gap: 24px;
+      padding: clamp(12px, 3vw, 28px);
+      min-height: 0;
+    }
+
+    .stage-wrap {
+      display: grid;
+      align-content: start;
+      justify-items: center;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    canvas {
+      width: min(100%, calc(var(--tile) * 18));
+      aspect-ratio: 18 / 12;
+      border: 2px solid var(--line);
+      border-radius: 12px;
+      background: #000;
+      image-rendering: pixelated;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 242, 255, 0.05);
+      touch-action: none;
+    }
+
+    .side {
+      display: grid;
+      align-content: start;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    .panel h2 {
+      margin: 0 0 16px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--blue);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel h2::before {
+      content: '';
+      display: block;
+      width: 4px;
+      height: 14px;
+      background: var(--blue);
+      border-radius: 2px;
+      box-shadow: var(--glow-blue);
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
+
+    .stat b {
+      display: block;
+      color: var(--blue);
+      font-size: 22px;
+      line-height: 1.1;
+      text-shadow: var(--glow-blue);
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .tool-grid button {
+      display: grid;
+      grid-template-columns: 22px 1fr;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      text-align: left;
+    }
+
+    .swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .swatch.floor { background: #1a2227; }
+    .swatch.wall { background: #475a68; border-color: #00f2ff; box-shadow: inset 0 0 4px #00f2ff; }
+    .swatch.spike { background: var(--red); clip-path: polygon(50% 6%, 96% 92%, 4% 92%); }
+    .swatch.gem { background: var(--blue); transform: rotate(45deg) scale(.75); box-shadow: 0 0 8px var(--blue); }
+    .swatch.exit { background: var(--green); border-radius: 50% 50% 0 0; box-shadow: 0 0 8px var(--green); }
+    .swatch.player { background: var(--green); border-radius: 50%; box-shadow: 0 0 10px var(--green); }
+    .swatch.false { background: #475a68; opacity: 0.6; }
+    .swatch.launch { background: linear-gradient(180deg, #222a2f 0 45%, var(--violet) 45% 58%, var(--blue) 58%); }
+    .swatch.mud { background: #423b2c; border: 1px dashed var(--muted); }
+    .swatch.checkpoint { background: var(--blue); clip-path: polygon(0 0, 100% 50%, 0 100%, 20% 50%); }
+    .swatch.barrier { background: repeating-linear-gradient(90deg, transparent 0 4px, var(--red) 4px 8px); }
+
+    .custom-section {
+      display: grid;
+      gap: 12px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+    }
+
+    .option-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .option-group label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+    }
+
+    .option-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .option-row button {
+      flex: 1;
+      min-height: 32px;
+      font-size: 10px;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .setting {
+      display: grid;
+      grid-template-columns: 1fr 80px;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input[type="number"] {
+      min-height: 34px;
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 10px;
+      color: var(--ink);
+      background: rgba(0, 0, 0, 0.4);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="number"]:focus {
+      border-color: var(--blue);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      color: var(--ink);
+      background: rgba(0, 0, 0, 0.4);
+      line-height: 1.5;
+      word-break: break-all;
+      outline: none;
+      font-size: 12px;
+      font-family: monospace;
+    }
+
+    textarea:focus {
+      border-color: var(--blue);
+    }
+
+    .mobile-pad {
+      display: none;
+      grid-template-columns: repeat(3, 56px);
+      grid-template-rows: repeat(2, 56px);
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .mobile-pad button {
+      min-height: 56px;
+      font-size: 24px;
+      font-weight: 800;
+      background: rgba(0, 242, 255, 0.1);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .up { grid-column: 2; }
+    .left { grid-column: 1; }
+    .down { grid-column: 2; }
+    .right { grid-column: 3; }
+    .hidden { display: none !important; }
+
+    @media (max-width: 860px) {
+      header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      main { grid-template-columns: 1fr; }
+      .mobile-pad { display: grid; }
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Level Lab</h1>
+        <div class="hint" id="gameHelp">Choose a game, play the default level, or build and share your own.</div>
+      </div>
+      <nav class="tabs" aria-label="Game and mode">
+        <button id="dashGame" class="active">Top Down</button>
+        <button id="platformGame">Platformer</button>
+        <button id="mazeGame">Maze</button>
+        <div style="width:6px; height:30px; background:var(--line); margin:20px 20px;"></div>
+        <button id="playTab" class="active">Play</button>
+        <button id="editTab">Editor</button>
+      </nav>
+    </header>
+
+    <main>
+      <section class="stage-wrap">
+        <canvas id="game" width="900" height="600" aria-label="Level Lab board"></canvas>
+        <div class="mobile-pad" id="mobilePad" aria-label="Movement controls">
+          <button class="up" data-move="0,-1">^</button>
+          <button class="left" data-move="-1,0">&lt;</button>
+          <button class="down" data-move="0,1">v</button>
+          <button class="right" data-move="1,0">&gt;</button>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="panel" id="playPanel">
+          <h2 id="playTitle">Play Level</h2>
+          <div class="stat-grid">
+            <div class="stat"><b id="gemCount">0</b><span>Gems left</span></div>
+            <div class="stat"><b id="moveCount">0</b><span id="moveLabel">Moves</span></div>
+            <div class="stat"><b id="bestCount">--</b><span>Best</span></div>
+          </div>
+
+          <div class="custom-section">
+            <div class="option-group">
+              <label>Player Style</label>
+              <div class="option-row" id="colorOptions">
+                <button data-color="#00ff9d" class="active" style="border-color:#00ff9d; color:#00ff9d">Green</button>
+                <button data-color="#00f2ff" style="border-color:#00f2ff; color:#00f2ff">Blue</button>
+                <button data-color="#ff0055" style="border-color:#ff0055; color:#ff0055">Pink</button>
+                <button data-color="#bc13fe" style="border-color:#bc13fe; color:#bc13fe">Purple</button>
+              </div>
+            </div>
+            <div class="option-group">
+              <div class="option-row" id="shapeOptions">
+                <button data-shape="circle" class="active">Circle</button>
+                <button data-shape="square">Square</button>
+                <button data-shape="triangle">Ninja</button>
+              </div>
+            </div>
+            <div class="option-group">
+              <div class="option-row" id="faceOptions">
+                <button data-face="happy" class="active">Happy</button>
+                <button data-face="cool">Cool</button>
+                <button data-face="angry">Angry</button>
+              </div>
+            </div>
+          </div>
+
+          <p class="hint" id="playHint" style="margin-top: 20px;">Move with arrow keys or WASD. Paste a level code below to play a shared level.</p>
+
+          <textarea id="loadCode" spellcheck="false" placeholder="Paste level code here"></textarea>
+          <div class="row">
+            <button class="primary" id="loadButton">Load Code</button>
+            <button id="restartButton">Restart</button>
+            <button id="defaultButton">Default</button>
+          </div>
+          <div class="message" id="playMessage"></div>
+        </section>
+
+        <section class="panel hidden" id="editPanel">
+          <h2 id="editTitle">Level Editor</h2>
+          <div class="tool-grid" id="tools"></div>
+          <div class="settings-grid">
+            <label class="setting">
+              <span>Level width</span>
+              <input id="widthSetting" type="number" min="8" max="60" step="1">
+            </label>
+            <label class="setting">
+              <span>Level height</span>
+              <input id="heightSetting" type="number" min="6" max="36" step="1">
+            </label>
+            <label class="setting" id="jumpSettingRow">
+              <span>Platformer jumps</span>
+              <input id="jumpSetting" type="number" min="1" max="5" step="1">
+            </label>
+            <label class="setting" id="jumpPowerSettingRow">
+              <span>Jump strength</span>
+              <input id="jumpPowerSetting" type="number" min="360" max="820" step="20">
+            </label>
+            <label class="setting" id="viewSettingRow">
+              <span>Maze view radius</span>
+              <input id="viewSetting" type="number" min="2" max="9" step="1">
+            </label>
+          </div>
+          <p class="hint" id="editHint">Click or drag on the board to paint. A level needs one player, at least one gem, and one exit.</p>
+          <div class="row">
+            <button class="good" id="saveButton">Save Code</button>
+            <button id="testButton">Test Level</button>
+            <button class="danger" id="clearButton">Clear</button>
+          </div>
+          <textarea id="saveCode" spellcheck="false" readonly placeholder="Your saved level code appears here"></textarea>
+          <div class="message" id="editMessage"></div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const VIEW_W = 18;
+    const VIEW_H = 12;
+    const MIN_W = 8;
+    const MIN_H = 6;
+    const MAX_W = 60;
+    const MAX_H = 36;
+    const TILE = 50;
+    const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    const tools = [
+      ["floor", ".", "Floor"],
+      ["wall", "#", "Wall"],
+      ["spike", "^", "Spike"],
+      ["gem", "*", "Gem"],
+      ["exit", "E", "Exit"],
+      ["player", "P", "Player"],
+      ["false", "F", "False Block"],
+      ["launch", "L", "Launch Pad"],
+      ["mud", "M", "Mud"],
+      ["checkpoint", "C", "Checkpoint"],
+      ["barrier", "B", "Barrier"]
+    ];
+    const games = {
+      dash: {
+        name: "Top Down",
+        title: "Vault Dash",
+        hint: "Collect every gem, avoid spikes, then step into the green exit.",
+        playHint: "Move with arrow keys or WASD. Paste a level code below to play a shared top-down level.",
+        editHint: "Paint a room with walls, spikes, gems, one exit, and one player start. For large levels, pan with arrow keys or WASD.",
+        scoreLabel: "Moves",
+        settings: { jumps: 2, jumpPower: 520, viewRadius: 5 },
+        rows: [
+          "##################",
+          "#P...*......#...E#",
+          "#.####.####.#.####",
+          "#......#....#....#",
+          "#.****.#.##...##.#",
+          "#.######.#######.#",
+          "#..............*.#",
+          "####.###########.#",
+          "#....#.....*.....#",
+          "#.##.#.###########",
+          "#..C.^..L..M.....#",
+          "##################"
+        ]
+      },
+      platform: {
+        name: "Platformer",
+        title: "Skyline Run",
+        hint: "Run, jump, collect every gem, and reach the green door.",
+        playHint: "Use A/D or arrow keys to run. Press W, Up, or Space to jump twice.",
+        editHint: "Build platforms with walls. Keep the player, gems, and exit reachable by jumping. For large levels, pan with arrow keys or WASD.",
+        scoreLabel: "Time",
+        settings: { jumps: 2, jumpPower: 520, viewRadius: 5 },
+        rows: [
+          "..................",
+          ".........F.....*E.",
+          "..............####",
+          "..........*.......",
+          ".........####.....",
+          ".....*.....L......",
+          "....####......^...",
+          "P...........####..",
+          "####....*.M.......",
+          ".......#####..C...",
+          "..^...............",
+          "##################"
+        ]
+      },
+      maze: {
+        name: "Maze",
+        title: "Gem Maze",
+        hint: "Find every gem in the maze, then escape through the green exit.",
+        playHint: "Move one square at a time with arrow keys or WASD. The maze only shows what your player can see.",
+        editHint: "Draw maze walls, gems, an exit, and a player start. For large levels, pan with arrow keys or WASD.",
+        scoreLabel: "Moves",
+        settings: { jumps: 2, jumpPower: 520, viewRadius: 5 },
+        rows: [
+          "##################",
+          "#P#..F..#.......E#",
+          "#.#.###.#.#####.##",
+          "#...#...#.....#..#",
+          "###.#.#####.#.##.#",
+          "#...#...*...#....#",
+          "#.#####.#######.##",
+          "#.....#.......#..#",
+          "#.###.#####.#.##.#",
+          "#...#...*...#....#",
+          "#.#...#####...*#^#",
+          "##################"
+        ]
+      }
+    };
+
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const playTab = document.getElementById("playTab");
+    const editTab = document.getElementById("editTab");
+    const playPanel = document.getElementById("playPanel");
+    const editPanel = document.getElementById("editPanel");
+    const toolsEl = document.getElementById("tools");
+    const saveCode = document.getElementById("saveCode");
+    const loadCode = document.getElementById("loadCode");
+    const playMessage = document.getElementById("playMessage");
+    const editMessage = document.getElementById("editMessage");
+    const gemCount = document.getElementById("gemCount");
+    const moveCount = document.getElementById("moveCount");
+    const bestCount = document.getElementById("bestCount");
+    const gameHelp = document.getElementById("gameHelp");
+    const playTitle = document.getElementById("playTitle");
+    const editTitle = document.getElementById("editTitle");
+    const playHint = document.getElementById("playHint");
+    const editHint = document.getElementById("editHint");
+    const moveLabel = document.getElementById("moveLabel");
+    const jumpSetting = document.getElementById("jumpSetting");
+    const jumpPowerSetting = document.getElementById("jumpPowerSetting");
+    const viewSetting = document.getElementById("viewSetting");
+    const widthSetting = document.getElementById("widthSetting");
+    const heightSetting = document.getElementById("heightSetting");
+    const jumpSettingRow = document.getElementById("jumpSettingRow");
+    const jumpPowerSettingRow = document.getElementById("jumpPowerSettingRow");
+    const viewSettingRow = document.getElementById("viewSettingRow");
+
+    let gameId = "dash";
+    let mode = "play";
+    let selected = ".";
+    let painting = false;
+    let keys = {};
+    let frameId = 0;
+    let baseLevel = parseRows(games[gameId].rows);
+    let level = cloneLevel(baseLevel);
+    let editorLevel = cloneLevel(baseLevel);
+    let player = makePlayer(level.player.x, level.player.y);
+    let seen = makeSeen();
+    let moves = 0;
+    let elapsed = 0;
+    let lastTime = performance.now();
+    let won = false;
+    let bestScore = {};
+    let camera = { x: 0, y: 0 };
+    let editorCamera = { x: 0, y: 0 };
+    let playerStyle = { color: "#00ff9d", shape: "circle", face: "happy" };
+    let victoryAnim = { active: false, time: 0, target: { x: 0, y: 0 } };
+
+    function initCustomization() {
+      const colorBtns = document.querySelectorAll("#colorOptions button");
+      const shapeBtns = document.querySelectorAll("#shapeOptions button");
+      const faceBtns = document.querySelectorAll("#faceOptions button");
+
+      colorBtns.forEach(btn => btn.addEventListener("click", () => {
+        playerStyle.color = btn.dataset.color;
+        colorBtns.forEach(b => b.classList.toggle("active", b === btn));
+        draw();
+      }));
+      shapeBtns.forEach(btn => btn.addEventListener("click", () => {
+        playerStyle.shape = btn.dataset.shape;
+        shapeBtns.forEach(b => b.classList.toggle("active", b === btn));
+        draw();
+      }));
+      faceBtns.forEach(btn => btn.addEventListener("click", () => {
+        playerStyle.face = btn.dataset.face;
+        faceBtns.forEach(b => b.classList.toggle("active", b === btn));
+        draw();
+      }));
+    }
+
+
+    function defaultSettings(id = gameId) {
+      return { ...games[id].settings };
+    }
+
+    function cleanSettings(raw, id = gameId) {
+      const defaults = defaultSettings(id);
+      const source = raw || {};
+      return {
+        jumps: clampNumber(source.jumps, 1, 5, defaults.jumps),
+        jumpPower: clampNumber(source.jumpPower, 360, 820, defaults.jumpPower),
+        viewRadius: clampNumber(source.viewRadius, 2, 9, defaults.viewRadius)
+      };
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.max(min, Math.min(max, Math.round(number)));
+    }
+
+    function getSetting(name) {
+      return cleanSettings(level.settings)[name];
+    }
+
+    function parseRows(rows) {
+      const w = Math.max(MIN_W, Math.min(MAX_W, Math.max(...rows.map(row => row.length))));
+      const h = Math.max(MIN_H, Math.min(MAX_H, rows.length));
+      const tiles = Array.from({ length: h }, (_, y) => (rows[y] || "").padEnd(w, ".").slice(0, w).split(""));
+      let foundPlayer = { x: 1, y: 1 };
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          if (tiles[y][x] === "P") {
+            foundPlayer = { x, y };
+            tiles[y][x] = ".";
+          }
+        }
+      }
+      return { w, h, tiles, player: foundPlayer, settings: defaultSettings() };
+    }
+
+    function cloneLevel(source) {
+      return {
+        w: source.w,
+        h: source.h,
+        tiles: source.tiles.map(row => row.slice()),
+        player: { ...source.player },
+        settings: cleanSettings(source.settings)
+      };
+    }
+
+    function makePlayer(x, y) {
+      if (gameId === "platform") {
+        const jumps = cleanSettings(level && level.settings).jumps;
+        return { x: x * TILE + 8, y: y * TILE + 8, vx: 0, vy: 0, w: 34, h: 38, ground: false, jumpsLeft: jumps, jumpHeld: false };
+      }
+      return { x, y };
+    }
+
+    function makeSeen() {
+      const source = mode === "edit" ? editorLevel : level;
+      return Array.from({ length: source.h }, () => Array.from({ length: source.w }, () => false));
+    }
+
+    function countTiles(target, symbol) {
+      return target.tiles.flat().filter(tile => tile === symbol).length;
+    }
+
+    function validateLevel(target) {
+      const exits = countTiles(target, "E");
+      const gems = countTiles(target, "*");
+      const p = target.player;
+      if (!p || p.x < 0 || p.y < 0 || p.x >= target.w || p.y >= target.h) return "Place one player start.";
+      if (target.tiles[p.y][p.x] === "#") return "The player cannot start inside a wall.";
+      if (target.tiles[p.y][p.x] === "^") return "The player cannot start on a spike.";
+      if (exits !== 1) return "Place exactly one exit.";
+      if (gems < 1) return "Place at least one gem.";
+      return "";
+    }
+
+    function serializeLevel(target) {
+      const compact = {
+        v: 2,
+        g: gameId,
+        w: target.w,
+        h: target.h,
+        p: [target.player.x, target.player.y],
+        t: target.tiles.map(row => row.join("")).join(""),
+        s: cleanSettings(target.settings)
+      };
+      return bytesToCode(new TextEncoder().encode(JSON.stringify(compact)));
+    }
+
+    function deserializeLevel(code) {
+      const cleaned = code.replace(/\s/g, "");
+      if (!/^[0-9A-Za-z]+$/.test(cleaned)) throw new Error("Level codes only use numbers and letters.");
+      const data = JSON.parse(new TextDecoder().decode(codeToBytes(cleaned)));
+      if ((data.v !== 1 && data.v !== 2) || data.w < MIN_W || data.w > MAX_W || data.h < MIN_H || data.h > MAX_H || typeof data.t !== "string" || data.t.length !== data.w * data.h) {
+        throw new Error("This level code is not for Level Lab.");
+      }
+      const codeGame = data.g || "dash";
+      if (!games[codeGame]) throw new Error("This code uses an unknown game.");
+      const allowed = new Set([".", "#", "^", "*", "E", "F", "L", "M", "C", "B"]);
+      const tiles = [];
+      for (let y = 0; y < data.h; y++) {
+        const row = data.t.slice(y * data.w, y * data.w + data.w).split("");
+        if (row.some(tile => !allowed.has(tile))) throw new Error("This level has an unknown tile.");
+        tiles.push(row);
+      }
+      const target = { w: data.w, h: data.h, tiles, player: { x: data.p[0], y: data.p[1] }, settings: cleanSettings(data.s, codeGame) };
+      const problem = validateLevel(target);
+      if (problem) throw new Error(problem);
+      return { game: codeGame, level: target };
+    }
+
+    function bytesToCode(bytes) {
+      let value = 0n;
+      for (const byte of bytes) value = (value << 8n) + BigInt(byte);
+      let body = "";
+      if (value === 0n) {
+        body = "0";
+      } else {
+        while (value > 0n) {
+          body = ALPHABET[Number(value % 62n)] + body;
+          value /= 62n;
+        }
+      }
+      return bytes.length.toString(36).toUpperCase() + "z" + body;
+    }
+
+    function codeToBytes(code) {
+      const split = code.indexOf("z");
+      if (split <= 0) throw new Error("That code is missing its length marker.");
+      const length = parseInt(code.slice(0, split), 36);
+      const body = code.slice(split + 1);
+      if (!Number.isFinite(length) || length < 1 || !body) throw new Error("That level code is incomplete.");
+      let value = 0n;
+      for (const char of body) {
+        const digit = ALPHABET.indexOf(char);
+        if (digit < 0) throw new Error("That code has an invalid character.");
+        value = value * 62n + BigInt(digit);
+      }
+      const bytes = new Uint8Array(length);
+      for (let i = length - 1; i >= 0; i--) {
+        bytes[i] = Number(value & 255n);
+        value >>= 8n;
+      }
+      if (value !== 0n) throw new Error("That level code is too long for its marker.");
+      return bytes;
+    }
+
+    function startLevel(nextLevel) {
+      baseLevel = cloneLevel(nextLevel);
+      level = cloneLevel(nextLevel);
+      player = makePlayer(level.player.x, level.player.y);
+      seen = makeSeen();
+      resetCamera();
+      victoryAnim.active = false;
+      moves = 0;
+      elapsed = 0;
+      won = false;
+      playMessage.textContent = "";
+      updateStats();
+      draw();
+    }
+
+    function restart() {
+      level = cloneLevel(baseLevel);
+      player = makePlayer(level.player.x, level.player.y);
+      seen = makeSeen();
+      resetCamera();
+      victoryAnim.active = false;
+      moves = 0;
+      elapsed = 0;
+      won = false;
+      playMessage.textContent = "";
+      updateStats();
+      draw();
+    }
+
+    function setGame(nextGame, keepEditor) {
+      gameId = nextGame;
+      if (!keepEditor) {
+        const fresh = parseRows(games[gameId].rows);
+        baseLevel = cloneLevel(fresh);
+        editorLevel = cloneLevel(fresh);
+        saveCode.value = "";
+      }
+      level = cloneLevel(baseLevel);
+      player = makePlayer(level.player.x, level.player.y);
+      seen = makeSeen();
+      resetCamera();
+      victoryAnim.active = false;
+      moves = 0;
+      elapsed = 0;
+      won = false;
+      playMessage.textContent = "";
+      editMessage.textContent = "";
+      updateUiText();
+      updateStats();
+      draw();
+    }
+
+    function updateUiText() {
+      const g = games[gameId];
+      gameHelp.textContent = g.hint;
+      playTitle.textContent = `Play ${g.title}`;
+      editTitle.textContent = `${g.title} Editor`;
+      playHint.textContent = g.playHint;
+      editHint.textContent = g.editHint;
+      moveLabel.textContent = g.scoreLabel;
+      document.getElementById("dashGame").classList.toggle("active", gameId === "dash");
+      document.getElementById("platformGame").classList.toggle("active", gameId === "platform");
+      document.getElementById("mazeGame").classList.toggle("active", gameId === "maze");
+      document.getElementById("mobilePad").classList.toggle("hidden", gameId === "platform");
+      jumpSettingRow.classList.toggle("hidden", gameId !== "platform");
+      jumpPowerSettingRow.classList.toggle("hidden", gameId !== "platform");
+      viewSettingRow.classList.toggle("hidden", gameId !== "maze");
+      syncSettingsInputs();
+    }
+
+    function syncSettingsInputs() {
+      const settings = cleanSettings(editorLevel.settings);
+      jumpSetting.value = settings.jumps;
+      jumpPowerSetting.value = settings.jumpPower;
+      viewSetting.value = settings.viewRadius;
+      widthSetting.value = editorLevel.w;
+      heightSetting.value = editorLevel.h;
+    }
+
+    function applyEditorSettings() {
+      editorLevel.settings = {
+        jumps: clampNumber(jumpSetting.value, 1, 5, defaultSettings().jumps),
+        jumpPower: clampNumber(jumpPowerSetting.value, 360, 820, defaultSettings().jumpPower),
+        viewRadius: clampNumber(viewSetting.value, 2, 9, defaultSettings().viewRadius)
+      };
+      syncSettingsInputs();
+      saveCode.value = "";
+      editMessage.textContent = "";
+    }
+
+    function applySizeSettings() {
+      const nextW = clampNumber(widthSetting.value, MIN_W, MAX_W, editorLevel.w);
+      const nextH = clampNumber(heightSetting.value, MIN_H, MAX_H, editorLevel.h);
+      resizeEditorLevel(nextW, nextH);
+      syncSettingsInputs();
+      saveCode.value = "";
+      editMessage.textContent = "Level size updated.";
+      draw();
+    }
+
+    function resizeEditorLevel(nextW, nextH) {
+      const old = editorLevel;
+      const tiles = Array.from({ length: nextH }, (_, y) => {
+        return Array.from({ length: nextW }, (_, x) => old.tiles[y]?.[x] || ".");
+      });
+      const playerX = Math.min(old.player.x, nextW - 1);
+      const playerY = Math.min(old.player.y, nextH - 1);
+      if (tiles[playerY][playerX] === "#" || tiles[playerY][playerX] === "^" || tiles[playerY][playerX] === "B") tiles[playerY][playerX] = ".";
+      editorLevel = { ...old, w: nextW, h: nextH, tiles, player: { x: playerX, y: playerY } };
+      editorCamera.x = Math.min(editorCamera.x, Math.max(0, (nextW - VIEW_W) * TILE));
+      editorCamera.y = Math.min(editorCamera.y, Math.max(0, (nextH - VIEW_H) * TILE));
+    }
+
+    function resetCamera() {
+      camera = { x: 0, y: 0 };
+      editorCamera = { x: 0, y: 0 };
+    }
+
+    function updateStats() {
+      gemCount.textContent = countTiles(level, "*");
+      moveCount.textContent = gameId === "platform" ? elapsed.toFixed(1) : moves;
+      bestCount.textContent = bestScore[gameId] ?? "--";
+    }
+
+    function finishLevel() {
+      won = true;
+      const score = gameId === "platform" ? Number(elapsed.toFixed(1)) : moves;
+      bestScore[gameId] = bestScore[gameId] === undefined ? score : Math.min(bestScore[gameId], score);
+      playMessage.textContent = "LEVEL COMPLETE!";
+
+      // Find exit for cutscene
+      for (let y = 0; y < level.h; y++) {
+        for (let x = 0; x < level.w; x++) {
+          if (level.tiles[y][x] === "E") {
+            victoryAnim = { active: true, time: 0, target: { x: x * TILE + TILE / 2, y: y * TILE + TILE / 2 } };
+            break;
+          }
+        }
+      }
+
+      updateStats();
+    }
+
+    function moveGrid(dx, dy) {
+      if (mode !== "play" || won || gameId === "platform") return;
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+      if (nx < 0 || ny < 0 || nx >= level.w || ny >= level.h) return;
+      const tile = level.tiles[ny][nx];
+      if (isSolidTile(tile)) return;
+      player = { x: nx, y: ny };
+      moves++;
+      if (tile === "*") {
+        level.tiles[ny][nx] = ".";
+        playMessage.textContent = "Gem collected.";
+      } else if (tile === "^") {
+        playMessage.textContent = "Spikes reset the level.";
+        setTimeout(restart, 240);
+      } else if (tile === "L") {
+        playMessage.textContent = "Launch pad.";
+        tryLaunchGrid(dx, dy);
+      } else if (tile === "M") {
+        moves++;
+        playMessage.textContent = "Mud costs an extra move.";
+      } else if (tile === "C") {
+        baseLevel.player = { ...player };
+        playMessage.textContent = "Checkpoint saved.";
+      } else if (tile === "E") {
+        if (countTiles(level, "*") === 0) finishLevel();
+        else playMessage.textContent = "Collect every gem before using the exit.";
+      } else {
+        playMessage.textContent = "";
+      }
+      updateStats();
+      draw();
+    }
+
+    function tryLaunchGrid(dx, dy) {
+      const nx = player.x + dx;
+      const ny = player.y + dy;
+      if (nx < 0 || ny < 0 || nx >= level.w || ny >= level.h || isSolidTile(level.tiles[ny][nx])) return;
+      player = { x: nx, y: ny };
+      moves++;
+      const tile = level.tiles[ny][nx];
+      if (tile === "*") level.tiles[ny][nx] = ".";
+      if (tile === "^") setTimeout(restart, 120);
+    }
+
+    function updatePlatform(dt) {
+      if (mode !== "play" || won || gameId !== "platform") return;
+      elapsed += dt;
+      const left = keys.arrowleft || keys.a;
+      const right = keys.arrowright || keys.d;
+      const jump = keys.arrowup || keys.w || keys[" "];
+      const onMud = platformTouches("M");
+      const speed = onMud ? 110 : 230;
+      player.vx = 0;
+      if (left) player.vx = -speed;
+      if (right) player.vx = speed;
+      if (player.ground) player.jumpsLeft = getSetting("jumps");
+      if (jump && !player.jumpHeld && player.jumpsLeft > 0) {
+        player.vy = -getSetting("jumpPower");
+        player.ground = false;
+        player.jumpsLeft--;
+      }
+      player.jumpHeld = jump;
+      player.vy = Math.min(player.vy + 1450 * dt, 720);
+      movePlatformAxis(player.vx * dt, 0);
+      movePlatformAxis(0, player.vy * dt);
+      collectPlatformTiles();
+      if (player.y > level.h * TILE + 80) restart();
+      updateStats();
+    }
+
+    function movePlatformAxis(dx, dy) {
+      player.x += dx;
+      player.y += dy;
+      if (dx !== 0 && hitsWall(player.x, player.y, player.w, player.h)) {
+        player.x -= dx;
+        while (!hitsWall(player.x + Math.sign(dx), player.y, player.w, player.h)) player.x += Math.sign(dx);
+        player.vx = 0;
+      }
+      if (dy !== 0) {
+        player.ground = false;
+        if (hitsWall(player.x, player.y, player.w, player.h)) {
+          player.y -= dy;
+          while (!hitsWall(player.x, player.y + Math.sign(dy), player.w, player.h)) player.y += Math.sign(dy);
+          if (dy > 0) {
+            player.ground = true;
+            player.jumpsLeft = getSetting("jumps");
+          }
+          player.vy = 0;
+        }
+      }
+      player.x = Math.max(0, Math.min(level.w * TILE - player.w, player.x));
+    }
+
+    function hitsWall(x, y, w, h) {
+      const left = Math.floor(x / TILE);
+      const right = Math.floor((x + w - 1) / TILE);
+      const top = Math.floor(y / TILE);
+      const bottom = Math.floor((y + h - 1) / TILE);
+      for (let ty = top; ty <= bottom; ty++) {
+        for (let tx = left; tx <= right; tx++) {
+          if (ty >= level.h || tx < 0 || tx >= level.w) return true;
+          if (ty >= 0 && isSolidTile(level.tiles[ty][tx])) return true;
+        }
+      }
+      return false;
+    }
+
+    function platformTouches(symbol) {
+      const left = Math.floor(player.x / TILE);
+      const right = Math.floor((player.x + player.w - 1) / TILE);
+      const top = Math.floor(player.y / TILE);
+      const bottom = Math.floor((player.y + player.h - 1) / TILE);
+      for (let y = Math.max(0, top); y <= Math.min(level.h - 1, bottom); y++) {
+        for (let x = Math.max(0, left); x <= Math.min(level.w - 1, right); x++) {
+          if (level.tiles[y][x] === symbol && rectTouchesTile(player, x, y)) return true;
+        }
+      }
+      return false;
+    }
+
+    function collectPlatformTiles() {
+      const cx = Math.floor((player.x + player.w / 2) / TILE);
+      const cy = Math.floor((player.y + player.h / 2) / TILE);
+      for (let y = Math.max(0, cy - 1); y <= Math.min(level.h - 1, cy + 1); y++) {
+        for (let x = Math.max(0, cx - 1); x <= Math.min(level.w - 1, cx + 1); x++) {
+          if (!rectTouchesTile(player, x, y)) continue;
+          const tile = level.tiles[y][x];
+          if (tile === "*") {
+            level.tiles[y][x] = ".";
+            playMessage.textContent = "Gem collected.";
+          }
+          if (tile === "^") {
+            playMessage.textContent = "Spikes reset the level.";
+            restart();
+            return;
+          }
+          if (tile === "L") {
+            player.vy = -Math.max(getSetting("jumpPower") * 1.35, 700);
+            player.ground = false;
+            player.jumpsLeft = Math.max(0, getSetting("jumps") - 1);
+            playMessage.textContent = "Launch pad.";
+          }
+          if (tile === "M") {
+            playMessage.textContent = "Mud slows you down.";
+          }
+          if (tile === "C") {
+            const checkpoint = { x: Math.floor((player.x + player.w / 2) / TILE), y: Math.floor((player.y + player.h / 2) / TILE) };
+            baseLevel.player = checkpoint;
+            level.player = checkpoint;
+            playMessage.textContent = "Checkpoint saved.";
+          }
+          if (tile === "E") {
+            if (countTiles(level, "*") === 0) finishLevel();
+            else playMessage.textContent = "Collect every gem before using the exit.";
+          }
+        }
+      }
+    }
+
+    function rectTouchesTile(rect, x, y) {
+      return rect.x < x * TILE + TILE && rect.x + rect.w > x * TILE && rect.y < y * TILE + TILE && rect.y + rect.h > y * TILE;
+    }
+
+    function isSolidTile(tile) {
+      return tile === "#" || tile === "B";
+    }
+
+    function setMode(nextMode) {
+      if (mode === nextMode) return;
+      mode = nextMode;
+      playTab.classList.toggle("active", mode === "play");
+      editTab.classList.toggle("active", mode === "edit");
+      playPanel.classList.toggle("hidden", mode !== "play");
+      editPanel.classList.toggle("hidden", mode !== "edit");
+      
+      victoryAnim.active = false;
+      resetCamera();
+      if (mode === "play") restart();
+      draw();
+    }
+
+    function paintAt(clientX, clientY) {
+      if (mode !== "edit") return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((clientX - rect.left) / rect.width * VIEW_W + editorCamera.x / TILE);
+      const y = Math.floor((clientY - rect.top) / rect.height * VIEW_H + editorCamera.y / TILE);
+      if (x < 0 || y < 0 || x >= editorLevel.w || y >= editorLevel.h) return;
+      if (selected === "P") {
+        editorLevel.player = { x, y };
+        if (editorLevel.tiles[y][x] === "#" || editorLevel.tiles[y][x] === "^" || editorLevel.tiles[y][x] === "B") editorLevel.tiles[y][x] = ".";
+      } else {
+        editorLevel.tiles[y][x] = selected;
+        if (editorLevel.player.x === x && editorLevel.player.y === y && (selected === "#" || selected === "^" || selected === "B")) {
+          editorLevel.player = { x: 0, y: 0 };
+          if (editorLevel.tiles[0][0] === "#" || editorLevel.tiles[0][0] === "^" || editorLevel.tiles[0][0] === "B") editorLevel.tiles[0][0] = ".";
+        }
+      }
+      editMessage.textContent = "";
+      draw();
+    }
+
+    function draw() {
+      updateCamera();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      if (victoryAnim.active) {
+        const scale = 1 + Math.min(victoryAnim.time, 2) * 2;
+        const zoomX = victoryAnim.target.x - camera.x;
+        const zoomY = victoryAnim.target.y - camera.y;
+        ctx.translate(zoomX, zoomY);
+        ctx.scale(scale, scale);
+        ctx.translate(-zoomX, -zoomY);
+      }
+
+      const shown = mode === "edit" ? editorLevel : level;
+      const visible = gameId === "maze" && mode === "play" ? getMazeVisibility() : null;
+      const startX = Math.max(0, Math.floor(camera.x / TILE) - 2);
+      const startY = Math.max(0, Math.floor(camera.y / TILE) - 2);
+      const endX = Math.min(shown.w - 1, startX + VIEW_W + 4);
+      const endY = Math.min(shown.h - 1, startY + VIEW_H + 4);
+
+      for (let y = startY; y <= endY; y++) {
+        for (let x = startX; x <= endX; x++) {
+          if (visible && !visible[y][x] && !seen[y][x]) {
+            drawUnknown(x, y);
+          } else {
+            drawTile(x, y, shown.tiles[y][x]);
+            if (visible && !visible[y][x]) drawFog(x, y);
+          }
+        }
+      }
+      const p = mode === "edit" ? editorLevel.player : player;
+      if (gameId === "platform" && mode === "play") drawPlatformPlayer(p);
+      else drawGridPlayer(p.x, p.y);
+      drawGrid();
+      ctx.restore();
+    }
+
+    function updateCamera() {
+      const shown = mode === "edit" ? editorLevel : level;
+      if (mode === "edit") {
+        camera.x = clampNumber(editorCamera.x, 0, Math.max(0, shown.w * TILE - canvas.width), 0);
+        camera.y = clampNumber(editorCamera.y, 0, Math.max(0, shown.h * TILE - canvas.height), 0);
+        editorCamera = { ...camera };
+        return;
+      }
+
+      let targetX, targetY;
+      if (victoryAnim.active) {
+        // Smoothly pan to exit during cutscene
+        const t = Math.min(victoryAnim.time * 2, 1); // Fast pan
+        const startX = gameId === "platform" ? player.x + player.w / 2 : player.x * TILE + TILE / 2;
+        const startY = gameId === "platform" ? player.y + player.h / 2 : player.y * TILE + TILE / 2;
+        targetX = startX + (victoryAnim.target.x - startX) * t;
+        targetY = startY + (victoryAnim.target.y - startY) * t;
+      } else {
+        targetX = gameId === "platform" ? player.x + player.w / 2 : player.x * TILE + TILE / 2;
+        targetY = gameId === "platform" ? player.y + player.h / 2 : player.y * TILE + TILE / 2;
+      }
+
+      camera.x = clampNumber(targetX - canvas.width / 2, 0, Math.max(0, shown.w * TILE - canvas.width), 0);
+      camera.y = clampNumber(targetY - canvas.height / 2, 0, Math.max(0, shown.h * TILE - canvas.height), 0);
+    }
+
+    function getMazeVisibility() {
+      const visible = makeSeen();
+      const radius = getSetting("viewRadius");
+      for (let y = Math.max(0, player.y - radius); y <= Math.min(level.h - 1, player.y + radius); y++) {
+        for (let x = Math.max(0, player.x - radius); x <= Math.min(level.w - 1, player.x + radius); x++) {
+          const dx = x - player.x;
+          const dy = y - player.y;
+          if (dx * dx + dy * dy > radius * radius) continue;
+          if (hasLineOfSight(player.x, player.y, x, y)) {
+            visible[y][x] = true;
+            seen[y][x] = true;
+          }
+        }
+      }
+      seen[player.y][player.x] = true;
+      visible[player.y][player.x] = true;
+      return visible;
+    }
+
+    function hasLineOfSight(x0, y0, x1, y1) {
+      let x = x0;
+      let y = y0;
+      const dx = Math.abs(x1 - x0);
+      const dy = Math.abs(y1 - y0);
+      const sx = x0 < x1 ? 1 : -1;
+      const sy = y0 < y1 ? 1 : -1;
+      let error = dx - dy;
+      while (!(x === x1 && y === y1)) {
+        const doubled = error * 2;
+        if (doubled > -dy) {
+          error -= dy;
+          x += sx;
+        }
+        if (doubled < dx) {
+          error += dx;
+          y += sy;
+        }
+        if (x === x1 && y === y1) return true;
+        if (x < 0 || y < 0 || x >= level.w || y >= level.h) return false;
+        if (isSolidTile(level.tiles[y][x]) || level.tiles[y][x] === "F") return false;
+      }
+      return true;
+    }
+
+    function drawUnknown(x, y) {
+      ctx.fillStyle = "#070a0d";
+      ctx.fillRect(x * TILE - camera.x, y * TILE - camera.y, TILE, TILE);
+    }
+
+    function drawFog(x, y) {
+      ctx.fillStyle = "rgba(0, 0, 0, .58)";
+      ctx.fillRect(x * TILE - camera.x, y * TILE - camera.y, TILE, TILE);
+    }
+
+    function drawTile(x, y, tile) {
+      const px = x * TILE - camera.x;
+      const py = y * TILE - camera.y;
+      const shownTile = tile === "F" && mode === "play" ? "#" : tile;
+
+      // Draw Floor (Subtle grid pattern)
+      ctx.fillStyle = gameId === "platform" ? "#080c14" : "#0a0f18";
+      ctx.fillRect(px, py, TILE, TILE);
+
+      if (shownTile === "#") {
+        // Wall: Dark block with neon glowing edge
+        ctx.fillStyle = "#121a2a";
+        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+        ctx.strokeStyle = varColor("--blue");
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 4, py + 4, TILE - 8, TILE - 8);
+        // Interior detail
+        ctx.fillStyle = "rgba(0, 242, 255, 0.05)";
+        ctx.fillRect(px + 8, py + 8, TILE - 16, TILE - 16);
+      }
+
+      if (tile === "F" && mode === "edit") {
+        ctx.strokeStyle = varColor("--violet");
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(px + 4, py + 4, TILE - 8, TILE - 8);
+        ctx.setLineDash([]);
+      }
+
+      if (tile === "B") {
+        // Barrier: Red energy field (Invisible in PLAY mode)
+        if (mode === "play") return;
+        ctx.fillStyle = "rgba(255, 0, 85, 0.1)";
+        ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+        ctx.strokeStyle = varColor("--red");
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 6, py + 6, TILE - 12, TILE - 12);
+        // Shimmer effect
+        const shim = (Math.sin(performance.now() / 200) + 1) / 2;
+        ctx.fillStyle = `rgba(255, 0, 85, ${0.1 + shim * 0.2})`;
+        ctx.fillRect(px + 10, py + 10, TILE - 20, TILE - 20);
+      }
+
+      if (tile === "^") {
+        // Spike: Sharp metallic with red glow
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = varColor("--red");
+        ctx.fillStyle = "#333";
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2, py + 6);
+        ctx.lineTo(px + TILE - 6, py + TILE - 6);
+        ctx.lineTo(px + 6, py + TILE - 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = varColor("--red");
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      if (tile === "*") {
+        // Gem: Multi-faceted crystal with pulse
+        const pulse = Math.sin(performance.now() / 300) * 2;
+        ctx.save();
+        ctx.translate(px + TILE / 2, py + TILE / 2);
+        ctx.rotate(performance.now() / 1000);
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = varColor("--blue");
+        ctx.fillStyle = varColor("--blue");
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const angle = (i * Math.PI * 2) / 6;
+          const r = 12 + pulse;
+          ctx.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+        }
+        ctx.closePath();
+        ctx.fill();
+        // Inner sparkle
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(0, 0, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowBlur = 0;
+      }
+
+      if (tile === "E") {
+        // Exit: Swirling green vortex
+        const rot = performance.now() / 500;
+        ctx.save();
+        ctx.translate(px + TILE / 2, py + TILE / 2);
+
+        if (victoryAnim.active) {
+          // Beams of light
+          const beamCount = 8;
+          const beamLength = 200 * Math.min(victoryAnim.time * 2, 1);
+          ctx.shadowBlur = 20 + Math.sin(performance.now() / 50) * 10;
+          ctx.shadowColor = varColor("--green");
+          for (let i = 0; i < beamCount; i++) {
+            ctx.rotate((Math.PI * 2) / beamCount);
+            ctx.fillStyle = `rgba(0, 255, 157, ${0.2 + Math.sin(performance.now() / 100 + i) * 0.1})`;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(beamLength, -15);
+            ctx.lineTo(beamLength, 15);
+            ctx.fill();
+          }
+        }
+
+        ctx.rotate(rot);
+        ctx.shadowBlur = victoryAnim.active ? 40 : 15;
+        ctx.shadowColor = varColor("--green");
+        ctx.strokeStyle = varColor("--green");
+        ctx.lineWidth = victoryAnim.active ? 5 : 3;
+        for (let i = 0; i < 3; i++) {
+          ctx.rotate(Math.PI * 2 / 3);
+          ctx.beginPath();
+          ctx.arc(0, 0, 15, 0, Math.PI, false);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.shadowBlur = 0;
+      }
+
+      if (tile === "L") {
+        // Launch Pad: Springy blue pad
+        ctx.fillStyle = "#1a2227";
+        ctx.fillRect(px + 4, py + TILE - 12, TILE - 8, 8);
+        ctx.fillStyle = varColor("--violet");
+        const bounce = Math.sin(performance.now() / 100) * 4;
+        ctx.fillRect(px + 8, py + TILE - 24 + bounce, TILE - 16, 6);
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = varColor("--blue");
+        ctx.fillStyle = varColor("--blue");
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2, py + TILE - 36 + bounce);
+        ctx.lineTo(px + TILE / 2 + 10, py + TILE - 26 + bounce);
+        ctx.lineTo(px + TILE / 2 - 10, py + TILE - 26 + bounce);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      if (tile === "M") {
+        // Mud: Bubbling sludge
+        ctx.fillStyle = "#2d2618";
+        ctx.fillRect(px + 4, py + TILE - 16, TILE - 8, 12);
+        const t = performance.now() / 400;
+        ctx.fillStyle = "#423b2c";
+        for (let i = 0; i < 3; i++) {
+          const bx = px + 12 + i * 12 + Math.sin(t + i) * 4;
+          const by = py + TILE - 12 + Math.cos(t * 1.5 + i) * 3;
+          ctx.beginPath();
+          ctx.arc(bx, by, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      if (tile === "C") {
+        // Checkpoint: Holographic flag
+        ctx.fillStyle = "#475a68";
+        ctx.fillRect(px + TILE / 2 - 2, py + 8, 4, TILE - 16);
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = varColor("--blue");
+        ctx.fillStyle = varColor("--blue");
+        const wave = Math.sin(performance.now() / 200) * 5;
+        ctx.beginPath();
+        ctx.moveTo(px + TILE / 2, py + 10);
+        ctx.quadraticCurveTo(px + TILE / 2 + 15, py + 15 + wave, px + TILE / 2 + 2, py + 25);
+        ctx.lineTo(px + TILE / 2, py + 25);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function varColor(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function drawGridPlayer(x, y) {
+      const px = x * TILE - camera.x;
+      const py = y * TILE - camera.y;
+      drawCustomPlayer(px + TILE / 2, py + TILE / 2, 16);
+    }
+
+    function drawPlatformPlayer(p) {
+      drawCustomPlayer(p.x + p.w / 2 - camera.x, p.y + p.h / 2 - camera.y, 18);
+    }
+
+    function drawCustomPlayer(cx, cy, r) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = playerStyle.color;
+      ctx.fillStyle = playerStyle.color;
+
+      if (playerStyle.shape === "circle") {
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (playerStyle.shape === "square") {
+        ctx.fillRect(-r, -r, r * 2, r * 2);
+      } else if (playerStyle.shape === "triangle") {
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(r, r);
+        ctx.lineTo(-r, r);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.shadowBlur = 0;
+      // Eyes
+      ctx.fillStyle = "#000";
+      const eyeSize = r * 0.2;
+      const eyeOffset = r * 0.35;
+      const eyeY = -r * 0.1;
+
+      if (playerStyle.face === "happy") {
+        ctx.fillRect(-eyeOffset - eyeSize / 2, eyeY, eyeSize, eyeSize);
+        ctx.fillRect(eyeOffset - eyeSize / 2, eyeY, eyeSize, eyeSize);
+        ctx.beginPath();
+        ctx.arc(0, r * 0.3, r * 0.4, 0, Math.PI);
+        ctx.stroke();
+      } else if (playerStyle.face === "cool") {
+        ctx.fillRect(-r * 0.6, eyeY - 2, r * 1.2, r * 0.3); // Shades
+      } else if (playerStyle.face === "angry") {
+        ctx.fillRect(-eyeOffset - eyeSize / 2, eyeY, eyeSize, eyeSize);
+        ctx.fillRect(eyeOffset - eyeSize / 2, eyeY, eyeSize, eyeSize);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-eyeOffset - 5, eyeY - 5);
+        ctx.lineTo(-eyeOffset + 5, eyeY - 2);
+        ctx.moveTo(eyeOffset + 5, eyeY - 5);
+        ctx.lineTo(eyeOffset - 5, eyeY - 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+
+    function drawGrid() {
+      ctx.strokeStyle = "rgba(255,255,255,.08)";
+      ctx.lineWidth = 1;
+      const shown = mode === "edit" ? editorLevel : level;
+      const startX = Math.floor(camera.x / TILE);
+      const startY = Math.floor(camera.y / TILE);
+      const endX = Math.min(shown.w, startX + VIEW_W + 1);
+      const endY = Math.min(shown.h, startY + VIEW_H + 1);
+      for (let x = startX; x <= endX; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * TILE - camera.x + .5, 0);
+        ctx.lineTo(x * TILE - camera.x + .5, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = startY; y <= endY; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * TILE - camera.y + .5);
+        ctx.lineTo(canvas.width, y * TILE - camera.y + .5);
+        ctx.stroke();
+      }
+    }
+
+    function buildToolButtons() {
+      for (const [id, symbol, label] of tools) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.tool = symbol;
+        button.innerHTML = `<span class="swatch ${id}"></span><span>${label}</span>`;
+        button.addEventListener("click", () => {
+          selected = symbol;
+          document.querySelectorAll("#tools button").forEach(btn => btn.classList.toggle("active", btn === button));
+        });
+        toolsEl.appendChild(button);
+      }
+      toolsEl.querySelector("button").classList.add("active");
+    }
+
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.04);
+      lastTime = now;
+      if (victoryAnim.active) victoryAnim.time += dt;
+      updatePlatform(dt);
+      draw();
+      frameId = requestAnimationFrame(loop);
+    }
+
+    document.addEventListener("keydown", event => {
+      const tag = document.activeElement.tagName;
+      if (tag === "TEXTAREA" || tag === "INPUT") return;
+      const key = event.key.toLowerCase();
+      keys[key] = true;
+      const map = {
+        arrowup: [0, -1],
+        w: [0, -1],
+        arrowdown: [0, 1],
+        s: [0, 1],
+        arrowleft: [-1, 0],
+        a: [-1, 0],
+        arrowright: [1, 0],
+        d: [1, 0]
+      };
+      if (map[key]) {
+        event.preventDefault();
+        if (mode === "edit") {
+          editorCamera.x += map[key][0] * TILE;
+          editorCamera.y += map[key][1] * TILE;
+          draw();
+        } else {
+          moveGrid(map[key][0], map[key][1]);
+        }
+      }
+      if (key === " ") event.preventDefault();
+    });
+
+    document.addEventListener("keyup", event => {
+      keys[event.key.toLowerCase()] = false;
+    });
+
+    canvas.addEventListener("pointerdown", event => {
+      painting = true;
+      canvas.setPointerCapture(event.pointerId);
+      paintAt(event.clientX, event.clientY);
+    });
+    canvas.addEventListener("pointermove", event => {
+      if (painting) paintAt(event.clientX, event.clientY);
+    });
+    canvas.addEventListener("pointerup", () => { painting = false; });
+    canvas.addEventListener("pointercancel", () => { painting = false; });
+
+    document.getElementById("mobilePad").addEventListener("click", event => {
+      const button = event.target.closest("button[data-move]");
+      if (!button) return;
+      const [dx, dy] = button.dataset.move.split(",").map(Number);
+      if (mode === "edit") {
+        editorCamera.x += dx * TILE;
+        editorCamera.y += dy * TILE;
+        draw();
+      } else {
+        moveGrid(dx, dy);
+      }
+    });
+
+    document.getElementById("dashGame").addEventListener("click", () => setGame("dash"));
+    document.getElementById("platformGame").addEventListener("click", () => setGame("platform"));
+    document.getElementById("mazeGame").addEventListener("click", () => setGame("maze"));
+    jumpSetting.addEventListener("input", applyEditorSettings);
+    jumpPowerSetting.addEventListener("input", applyEditorSettings);
+    viewSetting.addEventListener("input", applyEditorSettings);
+    widthSetting.addEventListener("change", applySizeSettings);
+    heightSetting.addEventListener("change", applySizeSettings);
+    playTab.addEventListener("click", () => setMode("play"));
+    editTab.addEventListener("click", () => setMode("edit"));
+    document.getElementById("restartButton").addEventListener("click", restart);
+    document.getElementById("defaultButton").addEventListener("click", () => setGame(gameId));
+    document.getElementById("loadButton").addEventListener("click", () => {
+      try {
+        const loaded = deserializeLevel(loadCode.value);
+        gameId = loaded.game;
+        baseLevel = cloneLevel(loaded.level);
+        editorLevel = cloneLevel(loaded.level);
+        saveCode.value = "";
+        startLevel(loaded.level);
+        updateUiText();
+        playMessage.textContent = `Shared ${games[gameId].name} level loaded.`;
+      } catch (error) {
+        playMessage.textContent = error.message;
+      }
+    });
+    document.getElementById("saveButton").addEventListener("click", async () => {
+      const problem = validateLevel(editorLevel);
+      if (problem) {
+        editMessage.textContent = problem;
+        return;
+      }
+      const code = serializeLevel(editorLevel);
+      saveCode.value = code;
+      saveCode.focus();
+      saveCode.select();
+      try {
+        await navigator.clipboard.writeText(code);
+        editMessage.textContent = "Code saved and copied.";
+      } catch {
+        editMessage.textContent = "Code saved. Copy it from the box.";
+      }
+    });
+    document.getElementById("testButton").addEventListener("click", () => {
+      const problem = validateLevel(editorLevel);
+      if (problem) {
+        editMessage.textContent = problem;
+        return;
+      }
+      startLevel(editorLevel);
+      setMode("play");
+      playMessage.textContent = `Testing your ${games[gameId].name} level.`;
+    });
+    document.getElementById("clearButton").addEventListener("click", () => {
+      editorLevel = {
+        w: editorLevel.w,
+        h: editorLevel.h,
+        tiles: Array.from({ length: editorLevel.h }, () => Array.from({ length: editorLevel.w }, () => ".")),
+        player: { x: 1, y: 1 },
+        settings: defaultSettings()
+      };
+      syncSettingsInputs();
+      saveCode.value = "";
+      editMessage.textContent = "Editor cleared.";
+      draw();
+    });
+
+    buildToolButtons();
+    initCustomization();
+    updateUiText();
+    updateStats();
+    draw();
+    frameId = requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>
